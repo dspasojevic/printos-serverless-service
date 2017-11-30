@@ -19,8 +19,7 @@ provider:
         - dynamodb:DeleteItem
       Resource: "arn:aws:dynamodb:ap-southeast-2:*:*"
 
-# you can overwrite defaults here
-#  stage: dev
+  stage: dev
   region: ap-southeast-2
 
 functions:
@@ -45,6 +44,13 @@ functions:
       - http:
           path: update
           method: post
+
+  printJob:
+    handler: handler.printJob
+    events:
+      - http:
+          path: print-jobs
+          method: get
 
 resources:
   Resources:

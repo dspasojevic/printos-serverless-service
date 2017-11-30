@@ -39,20 +39,10 @@ module.exports.lookup = (event, context, callback) => {
   const destination = lookupData.username;
   const password = lookupData.password;
 
-  dbScan(clientsTableName, 'password = :passwordKey and destination = :destinationKey', { ':passwordKey': password, ':destinationKey': destination }, authenticate);
+  authenticate(destination, password, lookingUp, callback);
 
-  function authenticate(err, data) {
-    if (err) {
-      console.log(err);
-    }
-    // Password and destination is valid.
-    if (data && data.Items && data.Items.length > 0) {
-      dbScan(printJobsTableName, 'jobStatus = :statusKey and destination = :destinationKey', { ':statusKey': printJobStatus.Active, ':destinationKey': destination }, printJobsResponse);
-    }
-    // Otherwise, return 400.
-    else {
-      callback(null, response(400, { message: 'Invalid password or destination.' }));
-    }
+  function lookingUp(err, data) {
+    dbScan(printJobsTableName, 'jobStatus = :statusKey and destination = :destinationKey', { ':statusKey': printJobStatus.Active, ':destinationKey': destination }, printJobsResponse);
   }
 
   function printJobsResponse(err, data) {
@@ -64,14 +54,78 @@ module.exports.lookup = (event, context, callback) => {
 };
 
 module.exports.submit = (event, context, callback) => {
-  dynamoDb.get({
+  const jobData = JSON.parse(event.body);
+  const password = jobData.password;
+  const destination = jobData.destination;
+
+  authenticate(destination, password, function () {
+    nextJobId().then((nextJobId) => {
+      submitJob(event, context, callback, nextJobId, destination);
+    });
+  }, callback);
+}
+
+module.exports.update = (event, context, callback) => {
+  // Update POST data from PrintOS local server.
+  const updateData = queryString.parse(event.body);
+  const printJobId = parseInt(updateData.id, 10);
+  const jobStatus = updateData.status;
+  const password = updateData.password;
+  const destination = updateData.username;
+
+  authenticate(destination, password, updatingJob, callback);
+
+  function updatingJob() {
+    dynamoDb.update({
+      TableName: printJobsTableName,
+      Key: { jobId: printJobId },
+      UpdateExpression: 'set #a = :x',
+      ExpressionAttributeNames: { '#a': 'jobStatus' },
+      ExpressionAttributeValues: {
+        ':x': jobStatus
+      }
+    }, function (err, data) {
+      if (err) {
+        callback(null, response(200, printOSUpdateResponse(false, err.message)));
+      }
+      else {
+        callback(null, response(200, printOSUpdateResponse(true)));
+      }
+    });
+  }
+}
+
+module.exports.printJob = (event, context, callback) => {
+  console.log(event);
+  try {
+    const jobId = parseInt(event.queryStringParameters.jobId, 10);
+    const destination = event.queryStringParameters.destination;
+    const password = event.queryStringParameters.password;
+    authenticate(destination, password, function () {
+      dbScan(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', { ':jobIdKey': jobId, ':destinationKey': destination }, function (err, data) {
+        callback(null, response(200, { printJobs: data.Items }));
+      });
+    }, callback);
+  }
+  catch (e) {
+    console.log(e.message);
+    callback(null, response(400, { message: 'Invalid query parameter.' }));
+  }
+}
+
+///
+
+function nextJobId() {
+  return new Promise((resolve, reject) => dynamoDb.get({
     TableName: nextJobIdTableName,
     Key: {
       id: 1
     }
   }, function (err, data) {
     let nextId = data && data.Item ? data.Item.nextId : 1;
-
+    if (err) {
+      reject(err);
+    }
     // Updates or adds.
     dynamoDb.update({
       TableName: nextJobIdTableName,
@@ -82,42 +136,13 @@ module.exports.submit = (event, context, callback) => {
         ':x': nextId + 1
       }
     }, function () {
-      submitJob(event, context, callback, nextId);
+      resolve(nextId);
     });
-  });
+  }));
 }
 
-module.exports.update = (event, context, callback) => {
-
-  // Update POST data from PrintOS local server.
-  const updateData = queryString.parse(event.body);
-  const printJobId = parseInt(updateData.id, 10);
-  const jobStatus = updateData.status;
-
-  dynamoDb.update({
-    TableName: printJobsTableName,
-    Key: { jobId: printJobId },
-    UpdateExpression: 'set #a = :x',
-    ExpressionAttributeNames: { '#a': 'jobStatus' },
-    ExpressionAttributeValues: {
-      ':x': jobStatus
-    }
-  }, function (err, data) {
-    if (err) {
-      callback(null, response(200, printOSUpdateResponse(false, err.message)));
-    }
-    else {
-      callback(null, response(200, printOSUpdateResponse(true)));
-    }
-  });
-}
-
-///
-
-function submitJob(event, context, callback, nextJobId) {
+function submitJob(event, context, callback, nextJobId, destination) {
   const jobData = JSON.parse(event.body);
-  const password = jobData.password;
-  const destination = jobData.destination;
   const data = jobData.data;
   const dbParams = {
     TableName: printJobsTableName,
@@ -128,38 +153,19 @@ function submitJob(event, context, callback, nextJobId) {
       destination: destination
     }
   };
-
-  if (!password || !destination || !data) {
-    callback(null, response(400, {
-      message: 'Requires Password and Destination and Data.'
-    }));
-  }
-  else {
-    dbScan(clientsTableName, 'password = :passwordKey and destination = :destinationKey', { ':passwordKey': password, ':destinationKey': destination }, authenticate);
-  }
-
-  function authenticate(err, data) {
-    // Password and destination is valid.
-    if (data && data.Items && data.Items.length > 0) {
-      dynamoDb.put(dbParams, function (err, data) {
-        if (err) {
-          callback(null, response(500, {
-            message: 'Internal error when creating print job.',
-            error: err.message
-          }));
-        }
-        else {
-          callback(null, response(200, {
-            message: 'Print job submitted successfully.'
-          }));
-        }
-      });
+  dynamoDb.put(dbParams, function (err, data) {
+    if (err) {
+      callback(null, response(500, {
+        message: 'Internal error when creating print job.',
+        error: err.message
+      }));
     }
-    // Otherwise, return 400.
     else {
-      callback(null, response(400, { message: 'Invalid password or destination.' }));
+      callback(null, response(200, {
+        message: 'Print job submitted successfully.'
+      }));
     }
-  }
+  });
 }
 
 function dbScan(tableName, filterExpression, expressionAttributeValues, cb) {
@@ -175,4 +181,24 @@ function response(statusCode, data) {
     statusCode: statusCode,
     body: JSON.stringify(data),
   };
+}
+
+function authenticate(destination, password, successCb, callback) {
+  if (!destination || !password) {
+    callback(null, response(400, { message: 'Invalid password or destination.' }));
+  }
+  else {
+    dbScan(clientsTableName, 'password = :passwordKey and destination = :destinationKey', { ':passwordKey': password, ':destinationKey': destination }, function (err, data) {
+      if (err) {
+        console.log(err);
+      }
+      // Desitnation and password is validated.
+      if (data && data.Items && data.Items.length > 0) {
+        successCb();
+      }
+      else {
+        callback(null, response(400, { message: 'Invalid password or destination.' }));
+      }
+    });
+  }
 }
