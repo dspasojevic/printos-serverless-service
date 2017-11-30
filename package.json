@@ -1,0 +1,16 @@
+{
+  "name": "printos-service",
+  "version": "0.0.1",
+  "description": "Replicate of PrintOS server.",
+  "main": "handler.js",
+  "dependencies": {
+    "lodash-fp": "^0.10.4",
+    "query-string": "^5.0.1",
+    "serverless-dynamodb-local": "^0.2.26",
+    "serverless-offline": "^3.16.0"
+  },
+  "devDependencies": {},
+  "scripts": {},
+  "author": "Haolin Jiang",
+  "license": "ISC"
+}
