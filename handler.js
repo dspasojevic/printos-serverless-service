@@ -1,47 +1,80 @@
 'use strict';
 
-var AWS = require('aws-sdk');
-var _ = require('lodash-fp');
-var queryString = require('query-string');
+const AWS = require('aws-sdk');
+const _ = require('lodash-fp');
+const queryString = require('query-string');
 
-var dynamoDb = new AWS.DynamoDB.DocumentClient({
-  region: 'localhost',
-  endpoint: 'http://localhost:8000'
+AWS.config.update({ region: 'ap-southeast-2' });
+
+// {
+//   region: 'localhost',
+//   endpoint: 'http://localhost:8000'
+// }
+const dynamoDb = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10' });
+
+const printJobsTableName = 'printJobsTable';
+const nextJobIdTableName = 'nextJobIdTable';
+const clientsTableName = 'clientsTable';
+
+// PrintOS lookup response expected by PrintOS local server.
+const printOSLookupResponse = (pass, ids, items) => ({
+  pass: pass,
+  version: 5,
+  ids: ids,
+  data: items
 });
 
-module.exports.lookup = (event, context, callback) => {
-  var params = {
-    TableName: 'printJobsTable',
-    FilterExpression: 'jobStatus = :statusKey',
-    ExpressionAttributeValues: { ':statusKey': 'Active' }
-  };
+// PrintOS print job update response expected by PrintOS local server.
+const printOSUpdateResponse = (pass, message) => ({
+  pass: pass,
+  message: message
+});
 
-  dynamoDb.scan(params, function (err, data) {
+const printJobStatus = {
+  Active: 'Active'
+};
+
+module.exports.lookup = (event, context, callback) => {
+  const lookupData = queryString.parse(event.body);
+  const destination = lookupData.username;
+  const password = lookupData.password;
+
+  dbScan(clientsTableName, 'password = :passwordKey and destination = :destinationKey', { ':passwordKey': password, ':destinationKey': destination }, authenticate);
+
+  function authenticate(err, data) {
+    if (err) {
+      console.log(err);
+    }
+    // Password and destination is valid.
+    if (data && data.Items && data.Items.length > 0) {
+      dbScan(printJobsTableName, 'jobStatus = :statusKey and destination = :destinationKey', { ':statusKey': printJobStatus.Active, ':destinationKey': destination }, printJobsResponse);
+    }
+    // Otherwise, return 400.
+    else {
+      callback(null, response(400, { message: 'Invalid password or destination.' }));
+    }
+  }
+
+  function printJobsResponse(err, data) {
     const dataItems = data.Items;
     const ids = _.map((item) => item.jobId)(dataItems)
     const items = _.map((item) => item.data)(dataItems);
-
-    callback(null, response(200, {
-      pass: true,
-      version: 5,
-      ids: ids,
-      data: items
-    }));
-  });
+    callback(null, response(200, printOSLookupResponse(true, ids, items)));
+  }
 };
 
 module.exports.submit = (event, context, callback) => {
   dynamoDb.get({
-    TableName: 'nextJobIdTable',
+    TableName: nextJobIdTableName,
     Key: {
       id: 1
     }
   }, function (err, data) {
-    console.log(data);
-    let nextId = data.Item ? data.Item.nextId : 1;
+    let nextId = data && data.Item ? data.Item.nextId : 1;
+
     // Updates or adds.
     dynamoDb.update({
-      TableName: 'nextJobIdTable',
+      TableName: nextJobIdTableName,
       Key: { id: 1 },
       UpdateExpression: 'set #a = :x',
       ExpressionAttributeNames: { '#a': 'nextId' },
@@ -58,15 +91,11 @@ module.exports.update = (event, context, callback) => {
 
   // Update POST data from PrintOS local server.
   const updateData = queryString.parse(event.body);
-  console.log(updateData);
-
   const printJobId = parseInt(updateData.id, 10);
   const jobStatus = updateData.status;
 
-  console.log(printJobId, jobStatus);
-
   dynamoDb.update({
-    TableName: 'printJobsTable',
+    TableName: printJobsTableName,
     Key: { jobId: printJobId },
     UpdateExpression: 'set #a = :x',
     ExpressionAttributeNames: { '#a': 'jobStatus' },
@@ -74,8 +103,12 @@ module.exports.update = (event, context, callback) => {
       ':x': jobStatus
     }
   }, function (err, data) {
-    // The pass true response is expected by PrintOS local server.
-    callback(null, response(200, { pass: true }))
+    if (err) {
+      callback(null, response(200, printOSUpdateResponse(false, err.message)));
+    }
+    else {
+      callback(null, response(200, printOSUpdateResponse(true)));
+    }
   });
 }
 
@@ -83,39 +116,58 @@ module.exports.update = (event, context, callback) => {
 
 function submitJob(event, context, callback, nextJobId) {
   const jobData = JSON.parse(event.body);
-  const accessKey = jobData.accessKey;
+  const password = jobData.password;
   const destination = jobData.destination;
   const data = jobData.data;
   const dbParams = {
-    TableName: 'printJobsTable',
+    TableName: printJobsTableName,
     Item: {
       jobId: nextJobId,
-      jobStatus: 'Active',
+      jobStatus: printJobStatus.Active,
       data: data,
       destination: destination
     }
   };
 
-  if (!accessKey || !destination || !data) {
+  if (!password || !destination || !data) {
     callback(null, response(400, {
-      message: 'Requires Access Key and Destination and Data.'
+      message: 'Requires Password and Destination and Data.'
     }));
   }
   else {
-    dynamoDb.put(dbParams, function (err, data) {
-      if (err) {
-        callback(null, response(500, {
-          message: 'Internal error when creating print job.',
-          error: err.message
-        }));
-      }
-      else {
-        callback(null, response(200, {
-          message: 'Print job submitted successfully.'
-        }));
-      }
-    });
+    dbScan(clientsTableName, 'password = :passwordKey and destination = :destinationKey', { ':passwordKey': password, ':destinationKey': destination }, authenticate);
   }
+
+  function authenticate(err, data) {
+    // Password and destination is valid.
+    if (data && data.Items && data.Items.length > 0) {
+      dynamoDb.put(dbParams, function (err, data) {
+        if (err) {
+          callback(null, response(500, {
+            message: 'Internal error when creating print job.',
+            error: err.message
+          }));
+        }
+        else {
+          callback(null, response(200, {
+            message: 'Print job submitted successfully.'
+          }));
+        }
+      });
+    }
+    // Otherwise, return 400.
+    else {
+      callback(null, response(400, { message: 'Invalid password or destination.' }));
+    }
+  }
+}
+
+function dbScan(tableName, filterExpression, expressionAttributeValues, cb) {
+  dynamoDb.scan({
+    TableName: tableName,
+    FilterExpression: filterExpression,
+    ExpressionAttributeValues: expressionAttributeValues
+  }, cb)
 }
 
 function response(statusCode, data) {
