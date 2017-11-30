@@ -1,7 +1,7 @@
 {
   "name": "printos-service",
   "version": "0.0.1",
-  "description": "Replicate of PrintOS server.",
+  "description": "Serverless implementation of PrintOS server.",
   "main": "handler.js",
   "dependencies": {
     "lodash-fp": "^0.10.4",
