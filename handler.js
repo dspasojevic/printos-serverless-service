@@ -34,6 +34,8 @@ const printJobStatus = {
   Active: 'Active'
 };
 
+/// modules.
+
 module.exports.lookup = (event, context, callback) => {
   const lookupData = queryString.parse(event.body);
   const destination = lookupData.username;
@@ -113,7 +115,7 @@ module.exports.printJob = (event, context, callback) => {
   }
 }
 
-///
+/// local functoins.
 
 function nextJobId() {
   return new Promise((resolve, reject) => dynamoDb.get({
@@ -157,12 +159,14 @@ function submitJob(event, context, callback, nextJobId, destination) {
     if (err) {
       callback(null, response(500, {
         message: 'Internal error when creating print job.',
-        error: err.message
+        errorMessage: err.message,
+        success: false
       }));
     }
     else {
       callback(null, response(200, {
-        message: 'Print job submitted successfully.'
+        id: nextJobId,
+        success: true
       }));
     }
   });
