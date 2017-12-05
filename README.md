@@ -28,10 +28,11 @@ sls dynamodb start --migrate
 OR (if you already created the tables)
 sls dynamodb start
 ```
+Follow instructions in https://github.com/serverless/serverless to deploy to your cloud service provider, e.g. AWS, GCE.
 
-After it is running locally, APIs:
+## After it is running locally, APIs:
+### Lookup Active print jobs for a destination.
 ```
-// Lookup Active print jobs for a destination.
 POST http://localhost:3000/lookup
 // Request JSON Body
 {
@@ -39,8 +40,8 @@ POST http://localhost:3000/lookup
   password: '1234'
 }
 ```
+### Submit print job to a destination.
 ```
-// Submit print job to a destination.
 POST http://localhost:3000/submit
 // Request JSON Body
 {
@@ -49,8 +50,8 @@ POST http://localhost:3000/submit
   destination: "destination"
 }
 ```
+### Update print job from a destination.
 ```
-// Update print job from a destination.
 POST http://localhost:3000/update
 // Request JSON Body
 {
@@ -59,7 +60,7 @@ POST http://localhost:3000/update
   status: 'Completed' // A String indicates current print job status.
 }
 ```
+### Get single print job by job id and its destination with password.
 ```
-// Get single print job by job id and its destination with password.
 GET http://localhost:3000/print-jobs?jobId=10&destination=destination&password=1234
 ```
