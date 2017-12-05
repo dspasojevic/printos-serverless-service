@@ -31,14 +31,35 @@ sls dynamodb start
 
 After it is running locally, APIs:
 ```
-// Lookup print jobs for a destination.
+// Lookup Active print jobs for a destination.
 POST http://localhost:3000/lookup
+// Request JSON Body
+{
+  username: 'destination',
+  password: '1234'
+}
 ```
 ```
 // Submit print job to a destination.
 POST http://localhost:3000/submit
+// Request JSON Body
+{
+  data: "{\"mode\": \"tagged\", \"comments\": \"Order E1 \"}", // refer to http://printos.io/doc/api_plaintextprintjobsubmission
+  password: "1234",
+  destination: "destination"
+}
 ```
 ```
 // Update print job from a destination.
 POST http://localhost:3000/update
+// Request JSON Body
+{
+  username: 'destination',
+  password: '1234',
+  status: 'Completed' // A String indicates current print job status.
+}
+```
+```
+// Get single print job by job id and its destination with password.
+GET http://localhost:3000/print-jobs?jobId=10&destination=destination&password=1234
 ```
