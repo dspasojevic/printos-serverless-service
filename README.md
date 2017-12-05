@@ -28,3 +28,17 @@ sls dynamodb start --migrate
 OR (if you already created the tables)
 sls dynamodb start
 ```
+
+After it is running locally, APIs:
+```
+// Lookup print jobs for a destination.
+POST http://localhost:3000/lookup
+```
+```
+// Submit print job to a destination.
+POST http://localhost:3000/submit
+```
+```
+// Update print job from a destination.
+POST http://localhost:3000/update
+```
