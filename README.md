@@ -30,7 +30,7 @@ sls dynamodb start
 ```
 Follow instructions in https://github.com/serverless/serverless to deploy to your cloud service provider, e.g. AWS, GCE.
 
-## After it is running locally, APIs:
+## APIs (when running locally)
 ### Lookup Active print jobs for a destination.
 ```
 POST http://localhost:3000/lookup
