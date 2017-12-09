@@ -3,6 +3,7 @@
 const AWS = require('aws-sdk');
 const _ = require('lodash-fp');
 const queryString = require('query-string');
+const urlencode = require('urlencode');
 
 AWS.config.update({ region: 'ap-southeast-2' });
 
@@ -54,10 +55,22 @@ module.exports.lookup = (event, context, callback) => {
   }
 
   function printJobsResponse(err, data) {
-    const dataItems = data.Items;
-    const ids = _.map((item) => item.jobId)(dataItems)
-    const items = _.map((item) => item.data)(dataItems);
-    callback(null, response(200, printOSLookupResponse(true, ids, items)));
+    if (data) {
+      const dataItems = data.Items;
+      const ids = _.map((item) => item.jobId)(dataItems)
+
+      // Server side uses Java URLEncoder to encode the data string,
+      // which converts space to '+' sign, replace + to % 20, so the Javascript URL encoder knows what to be decoded.
+      // @see https://stackoverflow.com/a/607403
+      const items = _.map((item) => {
+        const converted = item.data.replaceAll(/\+/g, '%20');
+        return urlencode.decode(converted);
+      })(dataItems);
+      callback(null, response(200, printOSLookupResponse(true, ids, items)));
+    }
+    else {
+      callback(null, response(200, printOSLookupResponse(true, [], [])));
+    }
   }
 };
 
@@ -130,10 +143,15 @@ module.exports.jobStatus = (event, context, callback) => {
     authenticate(destination, password, function () {
       dbScan(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', { ':jobIdKey': startId, ':destinationKey': destination }, function (err, data) {
         console.log(data);
-        callback(null, response(200, printOSStatusResponse(true, _.map((job) => ({
-          id: job.jobId,
-          status: job.jobStatus
-        }))(data.Items))));
+        if (data) {
+          callback(null, response(200, printOSStatusResponse(true, _.map((job) => ({
+            id: job.jobId,
+            status: job.jobStatus
+          }))(data.Items))));
+        }
+        else {
+          callback(null, response(200, printOSStatusResponse(true, [])));
+        }
       });
     }, callback);
   }
@@ -194,13 +212,13 @@ function submitJob(event, context, callback, nextJobId, destination) {
       callback(null, response(500, {
         message: 'Internal error when creating print job.',
         errorMessage: err.message,
-        success: false
+        pass: false
       }));
     }
     else {
       callback(null, response(200, {
         id: nextJobId,
-        success: true
+        pass: true
       }));
     }
   });
@@ -240,3 +258,9 @@ function authenticate(destination, password, successCb, callback) {
     });
   }
 }
+
+// @see https://stackoverflow.com/a/17606289
+String.prototype.replaceAll = function (search, replacement) {
+  var target = this;
+  return target.split(search).join(replacement);
+};

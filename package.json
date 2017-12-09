@@ -8,6 +8,7 @@
     "query-string": "^5.0.1",
     "serverless-dynamodb-local": "^0.2.26",
     "serverless-offline": "^3.16.0",
+    "urlencode": "^1.1.0",
     "uuid": "^3.1.0"
   },
   "devDependencies": {},
