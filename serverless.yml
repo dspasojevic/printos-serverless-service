@@ -52,6 +52,13 @@ functions:
           path: print-jobs
           method: get
 
+  jobStatus:
+    handler: handler.jobStatus
+    events:
+      - http:
+          path: status
+          method: post
+
 resources:
   Resources:
     printJobsTable:

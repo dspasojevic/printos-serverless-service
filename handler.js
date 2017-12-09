@@ -30,6 +30,12 @@ const printOSUpdateResponse = (pass, message) => ({
   message: message
 });
 
+// PrintPOS print job status response expected by legacy client.
+const printOSStatusResponse = (pass, printJobStatues) => ({
+  pass: pass,
+  status: printJobStatues
+});
+
 const printJobStatus = {
   Active: 'Active'
 };
@@ -56,7 +62,7 @@ module.exports.lookup = (event, context, callback) => {
 };
 
 module.exports.submit = (event, context, callback) => {
-  const jobData = JSON.parse(event.body);
+  const jobData = queryString.parse(event.body);
   const password = jobData.password;
   const destination = jobData.destination;
 
@@ -98,7 +104,6 @@ module.exports.update = (event, context, callback) => {
 }
 
 module.exports.printJob = (event, context, callback) => {
-  console.log(event);
   try {
     const jobId = parseInt(event.queryStringParameters.jobId, 10);
     const destination = event.queryStringParameters.destination;
@@ -114,6 +119,30 @@ module.exports.printJob = (event, context, callback) => {
     callback(null, response(400, { message: 'Invalid query parameter.' }));
   }
 }
+
+module.exports.jobStatus = (event, context, callback) => {
+  try {
+    const statusData = queryString.parse(event.body);
+    const destination = statusData.username;
+    const password = statusData.password;
+    const startId = parseInt(statusData.startid, 10);
+
+    authenticate(destination, password, function () {
+      dbScan(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', { ':jobIdKey': startId, ':destinationKey': destination }, function (err, data) {
+        console.log(data);
+        callback(null, response(200, printOSStatusResponse(true, _.map((job) => ({
+          id: job.jobId,
+          status: job.jobStatus
+        }))(data.Items))));
+      });
+    }, callback);
+  }
+  catch (e) {
+    console.log(e.message);
+    callback(null, response(400, { message: 'Invalid query parameter.' }));
+  }
+
+};
 
 /// local functoins.
 
@@ -137,14 +166,19 @@ function nextJobId() {
       ExpressionAttributeValues: {
         ':x': nextId + 1
       }
-    }, function () {
-      resolve(nextId);
+    }, function (err, data) {
+      if (err) {
+        reject(err);
+      }
+      else {
+        resolve(nextId);
+      }
     });
   }));
 }
 
 function submitJob(event, context, callback, nextJobId, destination) {
-  const jobData = JSON.parse(event.body);
+  const jobData = queryString.parse(event.body);
   const data = jobData.data;
   const dbParams = {
     TableName: printJobsTableName,
