@@ -19,8 +19,15 @@ provider:
         - dynamodb:DeleteItem
       Resource: "arn:aws:dynamodb:ap-southeast-2:*:*"
 
-  stage: dev
   region: ap-southeast-2
+
+  environment:
+    PRINT_JOBS_TABLE_NAME: "printJobsTable-${self:custom.stage}"
+    NEXT_JOB_ID_TABLE_NAME: "nextJobIdTable-${self:custom.stage}"
+    CLIENT_TABLE_NAME: "clientsTable-${self:custom.stage}"
+
+custom:
+  stage: "${self:provider.stage}"
 
 functions:
   lookup:
@@ -64,7 +71,7 @@ resources:
     printJobsTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: printJobsTable
+        TableName: "printJobsTable-${self:custom.stage}"
         AttributeDefinitions:
           - AttributeName: jobId
             AttributeType: N
@@ -78,7 +85,7 @@ resources:
     nextJobIdTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: nextJobIdTable
+        TableName: "nextJobIdTable-${self:custom.stage}"
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: N
@@ -92,7 +99,7 @@ resources:
     clientsTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: clientsTable
+        TableName: "clientsTable-${self:custom.stage}"
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S

@@ -13,9 +13,9 @@ AWS.config.update({ region: 'ap-southeast-2' });
 // }
 const dynamoDb = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10' });
 
-const printJobsTableName = 'printJobsTable';
-const nextJobIdTableName = 'nextJobIdTable';
-const clientsTableName = 'clientsTable';
+const printJobsTableName = process.env.PRINT_JOBS_TABLE_NAME;
+const nextJobIdTableName = process.env.NEXT_JOB_ID_TABLE_NAME;
+const clientsTableName = process.env.CLIENT_TABLE_NAME;
 
 // PrintOS lookup response expected by PrintOS local server.
 const printOSLookupResponse = (pass, ids, items) => ({
@@ -241,7 +241,7 @@ function response(statusCode, data) {
 
 function authenticate(destination, password, successCb, callback) {
   if (!destination || !password) {
-    callback(null, response(400, { message: 'Invalid password or destination.' }));
+    callback(null, response(400, { message: 'Invalid password or destination. [' + clientsTableName + ']' }));
   }
   else {
     dbScan(clientsTableName, 'password = :passwordKey and destination = :destinationKey', { ':passwordKey': password, ':destinationKey': destination }, function (err, data) {
@@ -253,7 +253,7 @@ function authenticate(destination, password, successCb, callback) {
         successCb();
       }
       else {
-        callback(null, response(400, { message: 'Invalid password or destination.' }));
+        callback(null, response(400, { message: 'Invalid password or destination. [' + clientsTableName + ']' }));
       }
     });
   }
