@@ -25,6 +25,7 @@ provider:
     PRINT_JOBS_TABLE_NAME: "printJobsTable-${self:custom.stage}"
     NEXT_JOB_ID_TABLE_NAME: "nextJobIdTable-${self:custom.stage}"
     CLIENT_TABLE_NAME: "clientsTable-${self:custom.stage}"
+    PRINT_LOOKUP_AHEAD_TIME_MILLIS: 3600000
 
 custom:
   stage: "${self:provider.stage}"
@@ -79,7 +80,7 @@ resources:
           - AttributeName: jobId
             KeyType: HASH
         ProvisionedThroughput:
-          ReadCapacityUnits: 1
+          ReadCapacityUnits: 4
           WriteCapacityUnits: 1
 
     nextJobIdTable:

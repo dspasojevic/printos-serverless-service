@@ -17,10 +17,12 @@ const printJobsTableName = process.env.PRINT_JOBS_TABLE_NAME;
 const nextJobIdTableName = process.env.NEXT_JOB_ID_TABLE_NAME;
 const clientsTableName = process.env.CLIENT_TABLE_NAME;
 
+const printLookupAheadTimeMillis = process.env.PRINT_LOOKUP_AHEAD_TIME_MILLIS;
+
 // PrintOS lookup response expected by PrintOS local server.
 const printOSLookupResponse = (pass, ids, items) => ({
   pass: pass,
-  version: 5,
+  version: 6,
   ids: ids,
   data: items
 });
@@ -51,7 +53,10 @@ module.exports.lookup = (event, context, callback) => {
   authenticate(destination, password, lookingUp, callback);
 
   function lookingUp(err, data) {
-    dbScan(printJobsTableName, 'jobStatus = :statusKey and destination = :destinationKey', { ':statusKey': printJobStatus.Active, ':destinationKey': destination }, printJobsResponse);
+    const lookupAheadTimeMillis = parseInt(printLookupAheadTimeMillis, 10);
+    const lookupTime = new Date().valueOf() - lookupAheadTimeMillis;
+    dbScan(printJobsTableName, 'jobStatus = :statusKey and destination = :destinationKey and timeSubmitted > :lookupTimeKey',
+      { ':statusKey': printJobStatus.Active, ':destinationKey': destination, ':lookupTimeKey': lookupTime }, printJobsResponse);
   }
 
   function printJobsResponse(err, data) {
@@ -135,8 +140,9 @@ module.exports.printJob = (event, context, callback) => {
 
 module.exports.jobStatus = (event, context, callback) => {
   try {
+    // Status query from DataPOS server, requires destination as username.
     const statusData = queryString.parse(event.body);
-    const destination = statusData.username;
+    const destination = statusData.destination;
     const password = statusData.password;
     const startId = parseInt(statusData.startid, 10);
 
@@ -204,7 +210,8 @@ function submitJob(event, context, callback, nextJobId, destination) {
       jobId: nextJobId,
       jobStatus: printJobStatus.Active,
       data: data,
-      destination: destination
+      destination: destination,
+      timeSubmitted: new Date().valueOf()
     }
   };
   dynamoDb.put(dbParams, function (err, data) {
@@ -241,7 +248,7 @@ function response(statusCode, data) {
 
 function authenticate(destination, password, successCb, callback) {
   if (!destination || !password) {
-    callback(null, response(400, { message: 'Invalid password or destination. [' + clientsTableName + ']' }));
+    callback(null, response(400, { message: 'Invalid password or destination. [' + destination + ']' + '[' + password + ']' }));
   }
   else {
     dbScan(clientsTableName, 'password = :passwordKey and destination = :destinationKey', { ':passwordKey': password, ':destinationKey': destination }, function (err, data) {
@@ -253,7 +260,7 @@ function authenticate(destination, password, successCb, callback) {
         successCb();
       }
       else {
-        callback(null, response(400, { message: 'Invalid password or destination. [' + clientsTableName + ']' }));
+        callback(null, response(400, { message: 'Invalid password or destination. [' + destination + ']' + '[' + password + ']' }));
       }
     });
   }
