@@ -19,13 +19,13 @@ provider:
         - dynamodb:DeleteItem
       Resource: "arn:aws:dynamodb:ap-southeast-2:*:*"
 
+  # stage: prod
   region: ap-southeast-2
 
   environment:
-    PRINT_JOBS_TABLE_NAME: "printJobsTable-${self:custom.stage}"
+    PRINT_JOBS_TABLE_NAME: "printJobTable-${self:custom.stage}"
     NEXT_JOB_ID_TABLE_NAME: "nextJobIdTable-${self:custom.stage}"
     CLIENT_TABLE_NAME: "clientsTable-${self:custom.stage}"
-    PRINT_LOOKUP_AHEAD_TIME_MILLIS: 3600000
 
 custom:
   stage: "${self:provider.stage}"
@@ -72,16 +72,34 @@ resources:
     printJobsTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: "printJobsTable-${self:custom.stage}"
+        TableName: "printJobTable-${self:custom.stage}"
         AttributeDefinitions:
           - AttributeName: jobId
             AttributeType: N
+          - AttributeName: jobStatus
+            AttributeType: S
+          - AttributeName: destination
+            AttributeType: S
         KeySchema:
           - AttributeName: jobId
             KeyType: HASH
+          - AttributeName: destination
+            KeyType: RANGE
         ProvisionedThroughput:
-          ReadCapacityUnits: 4
+          ReadCapacityUnits: 2
           WriteCapacityUnits: 1
+        GlobalSecondaryIndexes:
+          - IndexName: destination_status_index
+            KeySchema:
+              - AttributeName: destination
+                KeyType: HASH
+              - AttributeName: jobStatus
+                KeyType: RANGE
+            Projection: 
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 2
+              WriteCapacityUnits: 1
 
     nextJobIdTable:
       Type: AWS::DynamoDB::Table

@@ -17,12 +17,10 @@ const printJobsTableName = process.env.PRINT_JOBS_TABLE_NAME;
 const nextJobIdTableName = process.env.NEXT_JOB_ID_TABLE_NAME;
 const clientsTableName = process.env.CLIENT_TABLE_NAME;
 
-const printLookupAheadTimeMillis = process.env.PRINT_LOOKUP_AHEAD_TIME_MILLIS;
-
 // PrintOS lookup response expected by PrintOS local server.
 const printOSLookupResponse = (pass, ids, items) => ({
   pass: pass,
-  version: 6,
+  version: 5.1,
   ids: ids,
   data: items
 });
@@ -53,10 +51,8 @@ module.exports.lookup = (event, context, callback) => {
   authenticate(destination, password, lookingUp, callback);
 
   function lookingUp(err, data) {
-    const lookupAheadTimeMillis = parseInt(printLookupAheadTimeMillis, 10);
-    const lookupTime = new Date().valueOf() - lookupAheadTimeMillis;
-    dbScan(printJobsTableName, 'jobStatus = :statusKey and destination = :destinationKey and timeSubmitted > :lookupTimeKey',
-      { ':statusKey': printJobStatus.Active, ':destinationKey': destination, ':lookupTimeKey': lookupTime }, printJobsResponse);
+    dbQuery(printJobsTableName, 'jobStatus = :statusKey and destination = :destinationKey',
+      { ':statusKey': printJobStatus.Active, ':destinationKey': destination }, printJobsResponse, 'destination_status_index');
   }
 
   function printJobsResponse(err, data) {
@@ -127,7 +123,7 @@ module.exports.printJob = (event, context, callback) => {
     const destination = event.queryStringParameters.destination;
     const password = event.queryStringParameters.password;
     authenticate(destination, password, function () {
-      dbScan(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', { ':jobIdKey': jobId, ':destinationKey': destination }, function (err, data) {
+      dbQuery(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', { ':jobIdKey': jobId, ':destinationKey': destination }, function (err, data) {
         callback(null, response(200, { printJobs: data.Items }));
       });
     }, callback);
@@ -147,7 +143,7 @@ module.exports.jobStatus = (event, context, callback) => {
     const startId = parseInt(statusData.startid, 10);
 
     authenticate(destination, password, function () {
-      dbScan(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', { ':jobIdKey': startId, ':destinationKey': destination }, function (err, data) {
+      dbQuery(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', { ':jobIdKey': startId, ':destinationKey': destination }, function (err, data) {
         console.log(data);
         if (data) {
           callback(null, response(200, printOSStatusResponse(true, _.map((job) => ({
@@ -237,6 +233,22 @@ function dbScan(tableName, filterExpression, expressionAttributeValues, cb) {
     FilterExpression: filterExpression,
     ExpressionAttributeValues: expressionAttributeValues
   }, cb)
+}
+
+
+function dbQuery(tableName, keyConditionExpression, expressionAttributeValues, cb, indexName) {
+
+  let params = {
+    TableName: tableName,
+    KeyConditionExpression: keyConditionExpression,
+    ExpressionAttributeValues: expressionAttributeValues
+  };
+
+  if (indexName) {
+    params.IndexName = indexName;
+  }
+
+  dynamoDb.query(params, cb)
 }
 
 function response(statusCode, data) {
