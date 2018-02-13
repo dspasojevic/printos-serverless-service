@@ -23,7 +23,7 @@ provider:
   region: ap-southeast-2
 
   environment:
-    PRINT_JOBS_TABLE_NAME: "printJobTable-${self:custom.stage}"
+    PRINT_JOBS_TABLE_NAME: "printJobsTable-${self:custom.stage}"
     NEXT_JOB_ID_TABLE_NAME: "nextJobIdTable-${self:custom.stage}"
     CLIENT_TABLE_NAME: "clientsTable-${self:custom.stage}"
 
@@ -72,12 +72,10 @@ resources:
     printJobsTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: "printJobTable-${self:custom.stage}"
+        TableName: "printJobsTable-${self:custom.stage}"
         AttributeDefinitions:
           - AttributeName: jobId
             AttributeType: N
-          - AttributeName: jobStatus
-            AttributeType: S
           - AttributeName: destination
             AttributeType: S
         KeySchema:
@@ -93,8 +91,6 @@ resources:
             KeySchema:
               - AttributeName: destination
                 KeyType: HASH
-              - AttributeName: jobStatus
-                KeyType: RANGE
             Projection: 
               ProjectionType: ALL
             ProvisionedThroughput:

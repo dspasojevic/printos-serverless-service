@@ -20,7 +20,7 @@ const clientsTableName = process.env.CLIENT_TABLE_NAME;
 // PrintOS lookup response expected by PrintOS local server.
 const printOSLookupResponse = (pass, ids, items) => ({
   pass: pass,
-  version: 5.1,
+  version: 5,
   ids: ids,
   data: items
 });
@@ -51,7 +51,7 @@ module.exports.lookup = (event, context, callback) => {
   authenticate(destination, password, lookingUp, callback);
 
   function lookingUp(err, data) {
-    dbQuery(printJobsTableName, 'jobStatus = :statusKey and destination = :destinationKey',
+    dbQuery(printJobsTableName, 'destination = :destinationKey', 'jobStatus = :statusKey',
       { ':statusKey': printJobStatus.Active, ':destinationKey': destination }, printJobsResponse, 'destination_status_index');
   }
 
@@ -100,7 +100,7 @@ module.exports.update = (event, context, callback) => {
   function updatingJob() {
     dynamoDb.update({
       TableName: printJobsTableName,
-      Key: { jobId: printJobId },
+      Key: { jobId: printJobId, destination: destination },
       UpdateExpression: 'set #a = :x',
       ExpressionAttributeNames: { '#a': 'jobStatus' },
       ExpressionAttributeValues: {
@@ -123,7 +123,7 @@ module.exports.printJob = (event, context, callback) => {
     const destination = event.queryStringParameters.destination;
     const password = event.queryStringParameters.password;
     authenticate(destination, password, function () {
-      dbQuery(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', { ':jobIdKey': jobId, ':destinationKey': destination }, function (err, data) {
+      dbQuery(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', undefined, { ':jobIdKey': jobId, ':destinationKey': destination }, function (err, data) {
         callback(null, response(200, { printJobs: data.Items }));
       });
     }, callback);
@@ -143,7 +143,7 @@ module.exports.jobStatus = (event, context, callback) => {
     const startId = parseInt(statusData.startid, 10);
 
     authenticate(destination, password, function () {
-      dbQuery(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', { ':jobIdKey': startId, ':destinationKey': destination }, function (err, data) {
+      dbQuery(printJobsTableName, 'destination = :destinationKey and jobId = :jobIdKey', undefined, { ':jobIdKey': startId, ':destinationKey': destination }, function (err, data) {
         console.log(data);
         if (data) {
           callback(null, response(200, printOSStatusResponse(true, _.map((job) => ({
@@ -236,7 +236,7 @@ function dbScan(tableName, filterExpression, expressionAttributeValues, cb) {
 }
 
 
-function dbQuery(tableName, keyConditionExpression, expressionAttributeValues, cb, indexName) {
+function dbQuery(tableName, keyConditionExpression, filterExpression, expressionAttributeValues, cb, indexName) {
 
   let params = {
     TableName: tableName,
@@ -246,6 +246,10 @@ function dbQuery(tableName, keyConditionExpression, expressionAttributeValues, c
 
   if (indexName) {
     params.IndexName = indexName;
+  }
+
+  if (filterExpression) {
+    params.FilterExpression = filterExpression;
   }
 
   dynamoDb.query(params, cb)
