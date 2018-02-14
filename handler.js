@@ -53,7 +53,7 @@ module.exports.lookup = (event, context, callback) => {
   authenticate(destination, password, lookingUp, callback);
 
   function lookingUp(err, data) {
-    dbQuery(printJobsTableName, 'destination = :destinationKey', 'jobStatus = :statusKey',
+    dbQuery(printJobsTableName, 'destination = :destinationKey and jobStatus = :statusKey', undefined,
       { ':statusKey': printJobStatus.Active, ':destinationKey': destination }, printJobsResponse, 'destination_status_index');
   }
 

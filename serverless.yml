@@ -19,6 +19,7 @@ provider:
         - dynamodb:DeleteItem
       Resource: "arn:aws:dynamodb:ap-southeast-2:*:*"
 
+  # Make sure you specify your desired stage, dev will be default if not specified. 
   # stage: prod
   region: ap-southeast-2
 
@@ -79,6 +80,8 @@ resources:
             AttributeType: N
           - AttributeName: destination
             AttributeType: S
+          - AttributeName: jobStatus
+            AttributeType: S
         KeySchema:
           - AttributeName: jobId
             KeyType: HASH
@@ -92,10 +95,12 @@ resources:
             KeySchema:
               - AttributeName: destination
                 KeyType: HASH
+              - AttributeName: jobStatus
+                KeyType: RANGE
             Projection: 
               ProjectionType: ALL
             ProvisionedThroughput:
-              ReadCapacityUnits: 2
+              ReadCapacityUnits: 16
               WriteCapacityUnits: 1
 
     nextJobIdTable:
