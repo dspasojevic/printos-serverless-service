@@ -17,6 +17,8 @@ const printJobsTableName = process.env.PRINT_JOBS_TABLE_NAME;
 const nextJobIdTableName = process.env.NEXT_JOB_ID_TABLE_NAME;
 const clientsTableName = process.env.CLIENT_TABLE_NAME;
 
+const dynamoTimeToLive = process.env.DYNAMO_TIME_TO_LIVE;
+
 // PrintOS lookup response expected by PrintOS local server.
 const printOSLookupResponse = (pass, ids, items) => ({
   pass: pass,
@@ -200,6 +202,7 @@ function nextJobId() {
 function submitJob(event, context, callback, nextJobId, destination) {
   const jobData = queryString.parse(event.body);
   const data = jobData.data;
+  const nowInSeconds = new Date().valueOf() / 1000;
   const dbParams = {
     TableName: printJobsTableName,
     Item: {
@@ -207,7 +210,8 @@ function submitJob(event, context, callback, nextJobId, destination) {
       jobStatus: printJobStatus.Active,
       data: data,
       destination: destination,
-      timeSubmitted: new Date().valueOf()
+      timeSubmitted: nowInSeconds,
+      ttl: nowInSeconds + dynamoTimeToLive
     }
   };
   dynamoDb.put(dbParams, function (err, data) {

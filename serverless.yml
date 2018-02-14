@@ -26,6 +26,7 @@ provider:
     PRINT_JOBS_TABLE_NAME: "printJobsTable-${self:custom.stage}"
     NEXT_JOB_ID_TABLE_NAME: "nextJobIdTable-${self:custom.stage}"
     CLIENT_TABLE_NAME: "clientsTable-${self:custom.stage}"
+    DYNAMO_TIME_TO_LIVE: 86400
 
 custom:
   stage: "${self:provider.stage}"
