@@ -4,14 +4,17 @@
   "description": "Serverless implementation of PrintOS server.",
   "main": "handler.js",
   "dependencies": {
+    "aws-xray-sdk": "^1.2.0",
     "lodash-fp": "^0.10.4",
     "query-string": "^5.0.1",
-    "serverless-dynamodb-local": "^0.2.26",
-    "serverless-offline": "^3.16.0",
     "urlencode": "^1.1.0",
     "uuid": "^3.1.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "serverless-plugin-tracing": "^2.0.0",
+    "serverless-dynamodb-local": "^0.2.26",
+    "serverless-offline": "^3.16.0"
+  },
   "scripts": {},
   "author": "Haolin Jiang",
   "license": "ISC"

@@ -7,6 +7,9 @@ const urlencode = require('urlencode');
 
 AWS.config.update({ region: 'ap-southeast-2' });
 
+const awsXRay = require('aws-xray-sdk');
+const awsSdk = awsXRay.captureAWS(require('aws-sdk'));
+
 // {
 //   region: 'localhost',
 //   endpoint: 'http://localhost:8000'
